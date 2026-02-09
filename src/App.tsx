@@ -1,10 +1,11 @@
 import CommandFlowVisualizer from "./CommandFlowVisualizer";
 import "./App.css";
+import commands from "./commands.json";
 
 function App() {
     return (
         <div className="w-screen h-screen">
-            <CommandFlowVisualizer />
+            <CommandFlowVisualizer commands={commands} />
         </div>
     );
 }

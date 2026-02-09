@@ -12,22 +12,22 @@ import {
     useEdgesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import data from "./data.json";
 
-interface CommandEvent {
+
+interface Command {
     from: string;
     to: string[];
 }
 
-interface PolicyCommand {
+interface Policy {
     policy: string;
     fromEvent: string;
     toCommand: string;
 }
 
 interface FlowData {
-    commandEvents: CommandEvent[];
-    policyCommands: PolicyCommand[];
+    commands: Command[];
+    policies: Policy[];
 }
 
 const VERTICAL_SPACING = 75;
@@ -65,12 +65,17 @@ const generateColorForEvent = (eventName: string): string => {
     return colors[Math.abs(hash) % colors.length];
 };
 
-const CommandFlowVisualizer = () => {
+const CommandFlowVisualizer = (props: {
+    commands: {
+        commands: Command[],
+        policies: Policy[]
+    }
+}) => {
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [_copiedText, setCopiedText] = useState<string | null>(null);
 
     const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
-        const flowData: FlowData = data as FlowData;
+        const flowData: FlowData = props.commands as FlowData;
         const nodeMap = new Map<string, Node>();
         const edgeList: Edge[] = [];
         const eventYPositions = new Map<string, number>();
@@ -78,7 +83,7 @@ const CommandFlowVisualizer = () => {
         let yOffset = 0;
 
         // Create command nodes and their events
-        flowData.commandEvents.forEach((item) => {
+        flowData.commands.forEach((item) => {
             const commandId = `command-${item.from}`;
             const eventCount = item.to.length;
             const totalEventHeight = (eventCount - 1) * 100;
@@ -158,14 +163,14 @@ const CommandFlowVisualizer = () => {
         const eventColors = new Map<string, string>();
 
         // First pass: assign colors to unique events that have policies
-        flowData.policyCommands.forEach((policy) => {
+        flowData.policies.forEach((policy) => {
             if (!eventColors.has(policy.fromEvent)) {
                 eventColors.set(policy.fromEvent, generateColorForEvent(policy.fromEvent));
             }
         });
 
         // Second pass: create event nodes for external events (events not from commands)
-        flowData.policyCommands.forEach((policy) => {
+        flowData.policies.forEach((policy) => {
             const eventId = `event-${policy.fromEvent}`;
 
             // If event doesn't exist, it's an external event (e.g., from another microservice)
@@ -193,7 +198,7 @@ const CommandFlowVisualizer = () => {
             }
         });
 
-        flowData.policyCommands.forEach((policy, _index) => {
+        flowData.policies.forEach((policy, _index) => {
             const policyId = `policy-${policy.policy}`;
             const eventId = `event-${policy.fromEvent}`;
             const commandId = `command-${policy.toCommand}`;
