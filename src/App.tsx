@@ -1,4 +1,4 @@
-import CommandFlowVisualizer from "./CommandFlowVisualizer";
+import CommandFlowVisualizer from "./components/CommandFlowVisualizer";
 import "./App.css";
 import commands from "./commands.json";
 
