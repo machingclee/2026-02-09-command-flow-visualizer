@@ -211,26 +211,53 @@
       ]
     }
   ],
-  "policies": [
-    {
-      "policy": "AIProfileDefaultPolicy",
-      "fromEvent": "AiProfileCreatedEvent",
-      "toCommand": "SelectDefaultAiProfileCommand"
+  "policies": {
+    "AIProfileDefaultPolicy": {
+      "flows": [
+        {
+          "fromEvent": "ModelConfigDeletedEvent",
+          "toCommand": "ResetModelConfigOfAIProfileCommand",
+          "invariant": "When a config gets deleted, reset the default ai profile by using an existing config"
+        },
+        {
+          "fromEvent": "AiProfileCreatedEvent",
+          "toCommand": "SelectDefaultAiProfileCommand",
+          "invariant": "When created, and when there is no default selected profile, the newly created profile should be set to default profile"
+        },
+        {
+          "fromEvent": "ModelConfigCreatedEvent",
+          "toCommand": "SelectAiProfileDefaultModelConfigCommand",
+          "invariant": "For each aiprofile, any newly created modelconfig should be selected automatically"
+        }
+      ]
     },
-    {
-      "policy": "AIProfileDefaultPolicy",
-      "fromEvent": "ModelConfigDeletedEvent",
-      "toCommand": "ResetModelConfigOfAIProfileCommand"
+    "IsEditingFlagPolicy": {
+      "flows": [
+        {
+          "fromEvent": null,
+          "toCommand": null,
+          "invariant": "When we click \"leave anyway\", update is_editing to false"
+        },
+        {
+          "fromEvent": null,
+          "toCommand": null,
+          "invariant": "When there is any change, is_editing should be true"
+        },
+        {
+          "fromEvent": null,
+          "toCommand": null,
+          "invariant": "When we save an item, is_editing should be false"
+        }
+      ]
     },
-    {
-      "policy": "AIProfileDefaultPolicy",
-      "fromEvent": "ModelConfigCreatedEvent",
-      "toCommand": "SelectAiProfileDefaultModelConfigCommand"
-    },
-    {
-      "policy": "RecordExecutedCommandIntoHistoryPolicy",
-      "fromEvent": "ScriptExecutedEvent",
-      "toCommand": "CreateScriptHistoryCommand"
+    "RecordExecutedCommandIntoHistoryPolicy": {
+      "flows": [
+        {
+          "fromEvent": "ScriptExecutedEvent",
+          "toCommand": "CreateScriptHistoryCommand",
+          "invariant": "Whenever a script is executed, create a history record to capture the event"
+        }
+      ]
     }
-  ]
+  }
 }

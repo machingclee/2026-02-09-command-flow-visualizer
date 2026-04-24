@@ -4,6 +4,7 @@ import {
     Background,
     Controls,
     MiniMap,
+    Handle,
     type Node,
     type Edge,
     MarkerType,
@@ -19,15 +20,19 @@ interface Command {
     to: string[];
 }
 
-interface Policy {
-    policy: string;
-    fromEvent: string;
-    toCommand: string;
+interface PolicyFlow {
+    fromEvent: string | null;
+    toCommand: string | null;
+    invariant: string;
+}
+
+interface PolicyData {
+    flows: PolicyFlow[];
 }
 
 interface FlowData {
     commands: Command[];
-    policies: Policy[];
+    policies: { [policyName: string]: PolicyData };
 }
 
 const VERTICAL_SPACING = 75;
@@ -37,39 +42,117 @@ const FONT_SIZE = "16px"; // Global font size for node labels
 // Horizontal positions for each column
 const COMMAND_X = 100;
 const EVENT_X = 600;
-const POLICY_X = 1100;
+const POLICY_X = 1200;
 
-// Generate distinct colors based on event name
-const generateColorForEvent = (eventName: string): string => {
-    // Predefined colors that are visually distinct
-    const colors = [
-        "#ef4444", // red
-        "#06b6d4", // cyan
-        "#8b5cf6", // violet
-        "#ec4899", // pink
-        "#14b8a6", // teal
-        "#f97316", // orange
-        "#6366f1", // indigo
-        "#84cc16", // lime
-        "#f59e0b", // amber
-        "#22c55e", // green
-    ];
+const PolicyNode = ({ data }: { data: { label: string; flows: PolicyFlow[] } }) => (
+    <div
+        style={{
+            background: "#c084fc",
+            border: "2px solid #a855f7",
+            borderRadius: "8px",
+            padding: "10px 14px",
+            color: "#fff",
+            width: NODE_WIDTH,
+            boxSizing: "border-box",
+            position: "relative",
+        }}
+    >
+        <Handle type="target" position={Position.Left} />
+        <Handle type="source" position={Position.Right} />
+        <div
+            style={{
+                fontWeight: "bold",
+                fontSize: FONT_SIZE,
+                marginBottom: "8px",
+                paddingBottom: "6px",
+                borderBottom: "1px solid rgba(255,255,255,0.45)",
+            }}
+        >
+            {data.label}
+        </div>
+        <div style={{
+            display: "flex", justifyContent: "center",
+            fontSize: "12px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.85, marginBottom: "6px",
+        }}>
+            Invariants
+        </div>
+        <ul style={{ margin: 0, padding: 0, listStyleType: "none" }}>
+            {data.flows.map((flow, i) => (
+                <li key={i} style={{ marginBottom: "10px" }}>
+                    <div style={{ fontSize: "13px", lineHeight: 1.5, marginBottom: "4px" }}>
+                        {flow.invariant}
+                    </div>
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                        {flow.fromEvent ? (
+                            <span style={{
+                                display: "inline-block",
+                                background: "rgba(249,115,22,0.85)",
+                                border: "1px solid rgba(255,255,255,0.4)",
+                                borderRadius: "4px",
+                                padding: "1px 7px",
+                                fontSize: "11px",
+                                fontWeight: "bold",
+                                letterSpacing: "0.02em",
+                            }}>
+                                {flow.fromEvent}
+                            </span>
+                        ) : (
+                            <span style={{
+                                display: "inline-block",
+                                background: "rgba(0,0,0,0.25)",
+                                border: "1px solid rgba(255,255,255,0.2)",
+                                borderRadius: "4px",
+                                padding: "1px 7px",
+                                fontSize: "11px",
+                                fontStyle: "italic",
+                                opacity: 0.7,
+                            }}>
+                                To Be Arranged
+                            </span>
+                        )}
+                        <span style={{ fontSize: "11px", opacity: 0.7 }}>→</span>
+                        {flow.toCommand ? (
+                            <span style={{
+                                display: "inline-block",
+                                background: "rgba(37,99,235,0.85)",
+                                border: "1px solid rgba(255,255,255,0.4)",
+                                borderRadius: "4px",
+                                padding: "1px 7px",
+                                fontSize: "11px",
+                                fontWeight: "bold",
+                                letterSpacing: "0.02em",
+                            }}>
+                                {flow.toCommand}
+                            </span>
+                        ) : (
+                            <span style={{
+                                display: "inline-block",
+                                background: "rgba(0,0,0,0.25)",
+                                border: "1px solid rgba(255,255,255,0.2)",
+                                borderRadius: "4px",
+                                padding: "1px 7px",
+                                fontSize: "11px",
+                                fontStyle: "italic",
+                                opacity: 0.7,
+                            }}>
+                                To Be Arranged
+                            </span>
+                        )}
+                    </div>
+                </li>
+            ))}
+        </ul>
+    </div>
+);
 
-    // Simple hash function to convert event name to a number
-    let hash = 0;
-    for (let i = 0; i < eventName.length; i++) {
-        hash = (hash << 5) - hash + eventName.charCodeAt(i);
-        hash = hash & hash; // Convert to 32bit integer
-    }
+const nodeTypes = { policyNode: PolicyNode };
 
-    return colors[Math.abs(hash) % colors.length];
-};
 
 const CommandFlowVisualizer = (props: {
     commands: {
-        commands: Command[],
-        policies: Policy[]
-    }
+        commands: Command[];
+        policies: { [policyName: string]: PolicyData };
+    };
 }) => {
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [_copiedText, setCopiedText] = useState<string | null>(null);
@@ -78,7 +161,6 @@ const CommandFlowVisualizer = (props: {
         const flowData: FlowData = props.commands as FlowData;
         const nodeMap = new Map<string, Node>();
         const edgeList: Edge[] = [];
-        const eventYPositions = new Map<string, number>();
 
         let yOffset = 0;
 
@@ -97,9 +179,9 @@ const CommandFlowVisualizer = (props: {
                     data: { label: item.from },
                     position: { x: COMMAND_X, y: commandY },
                     style: {
-                        background: "#3b82f6",
+                        background: "#2563eb",
                         color: "#fff",
-                        border: "2px solid #2563eb",
+                        border: "2px solid #1d4ed8",
                         borderRadius: "8px",
                         padding: "10px",
                         fontSize: FONT_SIZE,
@@ -117,18 +199,15 @@ const CommandFlowVisualizer = (props: {
 
                 // Check if this event already exists
                 if (!nodeMap.has(eventId)) {
-                    // First occurrence - create the node
-                    eventYPositions.set(eventName, eventY);
-
                     nodeMap.set(eventId, {
                         id: eventId,
                         type: "default",
                         data: { label: eventName },
                         position: { x: EVENT_X, y: eventY },
                         style: {
-                            background: "#10b981",
+                            background: "#f97316",
                             color: "#fff",
-                            border: "2px solid #059669",
+                            border: "2px solid #ea580c",
                             borderRadius: "8px",
                             padding: "10px",
                             fontSize: FONT_SIZE,
@@ -158,115 +237,89 @@ const CommandFlowVisualizer = (props: {
             yOffset += totalEventHeight + VERTICAL_SPACING;
         });
 
-        // Add policy nodes and connections
-        const policyPositions = new Map<string, number>();
-        const eventColors = new Map<string, string>();
+        // Add policy nodes with event → policy → command connections
+        const POLICY_EDGE_COLOR = "#a855f7";
+        let policyYOffset = 0;
+        Object.entries(flowData.policies).forEach(([policyName, policyData]) => {
+            const policyId = `policy-${policyName}`;
 
-        // First pass: assign colors to unique events that have policies
-        flowData.policies.forEach((policy) => {
-            if (!eventColors.has(policy.fromEvent)) {
-                eventColors.set(policy.fromEvent, generateColorForEvent(policy.fromEvent));
-            }
-        });
+            nodeMap.set(policyId, {
+                id: policyId,
+                type: "policyNode",
+                data: { label: policyName, flows: policyData.flows },
+                position: { x: POLICY_X, y: policyYOffset },
+                style: {},
+                sourcePosition: Position.Right,
+                targetPosition: Position.Left,
+            });
 
-        // Second pass: create event nodes for external events (events not from commands)
-        flowData.policies.forEach((policy) => {
-            const eventId = `event-${policy.fromEvent}`;
+            // Estimate node height: header ~44px + each invariant ~46px + gap 60px
+            policyYOffset += policyData.flows.length * 46 + 44 + 60;
 
-            // If event doesn't exist, it's an external event (e.g., from another microservice)
-            if (!nodeMap.has(eventId)) {
-                const eventY = yOffset;
-                yOffset += VERTICAL_SPACING;
+            // Add edges for each flow: event → policy and policy → command
+            policyData.flows.forEach((flow) => {
+                // Skip flows where both sides are null (still in design)
+                if (flow.fromEvent === null && flow.toCommand === null) return;
 
-                nodeMap.set(eventId, {
-                    id: eventId,
-                    type: "default",
-                    data: { label: policy.fromEvent },
-                    position: { x: EVENT_X, y: eventY },
-                    style: {
-                        background: "#10b981",
-                        color: "#fff",
-                        border: "2px solid #059669",
-                        borderRadius: "8px",
-                        padding: "10px",
-                        fontSize: FONT_SIZE,
-                        width: NODE_WIDTH,
-                    },
-                    sourcePosition: Position.Right,
-                    targetPosition: Position.Left,
-                });
-            }
-        });
+                if (flow.fromEvent !== null) {
+                    const eventId = `event-${flow.fromEvent}`;
 
-        flowData.policies.forEach((policy, _index) => {
-            const policyId = `policy-${policy.policy}`;
-            const eventId = `event-${policy.fromEvent}`;
-            const commandId = `command-${policy.toCommand}`;
-            const eventColor = eventColors.get(policy.fromEvent)!;
+                    // Create external event node if it doesn't exist yet
+                    if (!nodeMap.has(eventId)) {
+                        nodeMap.set(eventId, {
+                            id: eventId,
+                            type: "default",
+                            data: { label: flow.fromEvent },
+                            position: { x: EVENT_X, y: yOffset },
+                            style: {
+                                background: "#f97316",
+                                color: "#fff",
+                                border: "2px solid #ea580c",
+                                borderRadius: "8px",
+                                padding: "10px",
+                                fontSize: FONT_SIZE,
+                                width: NODE_WIDTH,
+                            },
+                            sourcePosition: Position.Right,
+                            targetPosition: Position.Left,
+                        });
+                        yOffset += VERTICAL_SPACING;
+                    }
 
-            // Add policy node (only once per unique policy name)
-            if (!nodeMap.has(policyId)) {
-                const policyY = policyPositions.size * VERTICAL_SPACING;
-                policyPositions.set(policy.policy, policyY);
-
-                nodeMap.set(policyId, {
-                    id: policyId,
-                    type: "default",
-                    data: { label: policy.policy },
-                    position: { x: POLICY_X, y: policyY },
-                    style: {
-                        background: eventColor,
-                        color: "#fff",
-                        border: `2px solid ${eventColor}`,
-                        borderRadius: "8px",
-                        padding: "10px",
-                        fontSize: FONT_SIZE,
-                        width: NODE_WIDTH,
-                    },
-                    sourcePosition: Position.Right,
-                    targetPosition: Position.Left,
-                });
-            }
-
-            // Connect event to policy with event color
-            if (nodeMap.has(eventId)) {
-                const edgeId = `${eventId}-${policyId}`;
-                // Only add edge if it doesn't exist (avoid duplicate edges)
-                if (!edgeList.find((e) => e.id === edgeId)) {
-                    edgeList.push({
-                        id: edgeId,
-                        source: eventId,
-                        target: policyId,
-                        type: "smoothstep",
-                        animated: true,
-                        style: { stroke: eventColor, strokeWidth: 2 },
-                        markerEnd: {
-                            type: MarkerType.ArrowClosed,
-                            color: eventColor,
-                        },
-                    });
+                    // event → policy
+                    const ep = `${eventId}-${policyId}`;
+                    if (!edgeList.find((e) => e.id === ep)) {
+                        edgeList.push({
+                            id: ep,
+                            source: eventId,
+                            target: policyId,
+                            type: "smoothstep",
+                            animated: true,
+                            style: { stroke: POLICY_EDGE_COLOR, strokeWidth: 2 },
+                            markerEnd: { type: MarkerType.ArrowClosed, color: POLICY_EDGE_COLOR },
+                        });
+                    }
                 }
-            }
 
-            // Connect policy to command with the same event color
-            if (nodeMap.has(commandId)) {
-                const edgeId = `${policyId}-${commandId}`;
-                // Only add edge if it doesn't exist (avoid duplicate edges)
-                if (!edgeList.find((e) => e.id === edgeId)) {
-                    edgeList.push({
-                        id: edgeId,
-                        source: policyId,
-                        target: commandId,
-                        type: "smoothstep",
-                        animated: true,
-                        style: { stroke: eventColor, strokeWidth: 2 },
-                        markerEnd: {
-                            type: MarkerType.ArrowClosed,
-                            color: eventColor,
-                        },
-                    });
+                // policy → command
+                if (flow.toCommand !== null) {
+                    const commandId = `command-${flow.toCommand}`;
+                    if (nodeMap.has(commandId)) {
+                        const pc = `${policyId}-${commandId}`;
+                        if (!edgeList.find((e) => e.id === pc)) {
+                            edgeList.push({
+                                id: pc,
+                                source: policyId,
+                                target: commandId,
+                                type: "smoothstep",
+                                animated: true,
+                                style: { stroke: POLICY_EDGE_COLOR, strokeWidth: 2 },
+                                markerEnd: { type: MarkerType.ArrowClosed, color: POLICY_EDGE_COLOR },
+                            });
+                        }
+                    }
                 }
-            }
+            });
         });
 
         return {
@@ -350,6 +403,7 @@ const CommandFlowVisualizer = (props: {
     return (
         <div className="w-screen h-screen">
             <ReactFlow
+                nodeTypes={nodeTypes}
                 nodes={highlightedNodes}
                 edges={highlightedEdges}
                 fitView
@@ -368,9 +422,9 @@ const CommandFlowVisualizer = (props: {
                 <Controls />
                 <MiniMap
                     nodeColor={(node) => {
-                        if (node.id.startsWith("command-")) return "#3b82f6";
-                        if (node.id.startsWith("event-")) return "#10b981";
-                        if (node.id.startsWith("policy-")) return "#f59e0b";
+                        if (node.id.startsWith("command-")) return "#2563eb";
+                        if (node.id.startsWith("event-")) return "#f97316";
+                        if (node.id.startsWith("policy-")) return "#c084fc";
                         return "#64748b";
                     }}
                 />
