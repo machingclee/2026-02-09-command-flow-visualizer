@@ -5,7 +5,7 @@
 
 http://event-storming-example.s3-website.ap-northeast-2.amazonaws.com/
 
-![alt text](image.png)
+<img width="934" height="434" alt="image" src="https://github.com/user-attachments/assets/a92c4fac-ddb5-403b-b596-3649b7a9d5eb" />
 
 ## Purpose
 
